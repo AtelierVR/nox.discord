@@ -1,0 +1,44 @@
+{
+  "type": "mod",
+  "id": "nox.discord",
+  "name": "Discord",
+  "version": "1.0.0",
+  "description": "Rich presence for Discord",
+  "license": "GPL-3.0",
+  "icon": null,
+  "contact": {
+    "email": "hactazia@gmail.com",
+    "source": "https://github.com/AtelierVR/nox.discord",
+    "website": "https://nox.hactazia.fr/",
+    "issues": "https://github.com/AtelierVR/nox.discord/issues"
+  },
+  "authors": [
+    {
+      "name": "Hactazia",
+      "email": "hactazia@gmail.com",
+      "website": "https://hactazia.fr/"
+    }
+  ],
+  "contributors": [],
+  "relations": [
+    {
+      "id": "user",
+      "type": "recommends",
+      "version": ">=1.0.0"
+    },
+    {
+      "id": "session",
+      "type": "recommends",
+      "version": ">=1.0.0"
+    }
+  ],
+  "entrypoints": {
+    "main": [
+      "Nox.Discord.Main"
+    ]
+  },
+  "references": [],
+  "sides": [],
+  "permissions": [],
+  "kernel": true
+}
