@@ -6,7 +6,8 @@
         "UniTask",
         "Nox.Users",
         "Nox.Sessions",
-        "Nox.Instances"
+        "Nox.Instances",
+        "Nox.CCK.Sessions"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],
