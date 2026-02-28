@@ -20,7 +20,7 @@ namespace Nox.Discord {
 
         private static IUserAPI UserAPI
             => _coreAPI.ModAPI
-                       .GetMod("user")
+                       .GetMod("users")
                        ?.GetInstance<IUserAPI>();
 
         private static ISessionAPI SessionAPI
@@ -46,7 +46,11 @@ namespace Nox.Discord {
             _coreAPI.LoggerAPI.Log("Discord RPC initialized.");
             _isInitialized = true;
 
-            _events = new[] { api.EventAPI.Subscribe("user_fetch", OnUpdateEvent), api.EventAPI.Subscribe("instance_fetch", OnUpdateEvent), api.EventAPI.Subscribe("session_current_changed", OnUpdateEvent) };
+            _events = new[] {
+                api.EventAPI.Subscribe("user_fetch", OnUpdateEvent),
+                api.EventAPI.Subscribe("instance_fetch", OnUpdateEvent), 
+                api.EventAPI.Subscribe("session_current_changed", OnUpdateEvent)
+            };
         }
 
         public void OnUpdateMain() {
@@ -107,7 +111,7 @@ namespace Nox.Discord {
             if (instanceId != null && instanceId.IsValid() && InstanceAPI != null) 
                 instance = await InstanceAPI.Fetch(instanceId);
 
-            _coreAPI.LoggerAPI.LogDebug($"Updating Discord presence for user '{user?.GetDisplay() ?? "Not logged"}' in session '{session?.GetTitle() ?? "No session"}'");
+            // _coreAPI.LoggerAPI.LogDebug($"Updating Discord presence for user '{user?.GetDisplay() ?? "Not logged"}' in session '{session?.GetTitle() ?? "No session"}'");
 
             var thumbnail = user != null ? user.GetThumbnailUrl() : "";
             var display = user != null ? user.GetDisplay() : "";

@@ -22,12 +22,17 @@
   "contributors": [],
   "relations": [
     {
-      "id": "user",
+      "id": "users",
       "type": "recommends",
       "version": ">=1.0.0"
     },
     {
       "id": "session",
+      "type": "recommends",
+      "version": ">=1.0.0"
+    },
+    {
+      "id": "instance",
       "type": "recommends",
       "version": ">=1.0.0"
     }
