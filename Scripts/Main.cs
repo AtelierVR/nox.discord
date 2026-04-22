@@ -4,6 +4,7 @@ using Nox.CCK.Mods.Cores;
 using Nox.CCK.Mods.Events;
 using Nox.CCK.Mods.Initializers;
 using Nox.CCK.Sessions;
+using Nox.CCK.Utils;
 using Nox.Instances;
 using Nox.Sessions;
 using Nox.Users;
@@ -30,7 +31,7 @@ namespace Nox.Discord {
 
 		private static IInstanceAPI InstanceAPI
 			=> _coreAPI.ModAPI
-				.GetMod("instance")
+				.GetMod("instances")
 				?.GetInstance<IInstanceAPI>();
 
 		private EventSubscription[] _events = Array.Empty<EventSubscription>();
@@ -108,13 +109,11 @@ namespace Nox.Discord {
 			var session = SessionAPI != null && SessionAPI.TryGet(SessionAPI.Current, out var s) ? s : null;
 
 
-			var instanceId = session?.GetInstance();
+			var instanceId = session?.GetInstance() ?? Identifier.Invalid;
 
 			IInstance instance = null;
-			if (instanceId != null && instanceId.IsValid() && InstanceAPI != null)
+			if ( instanceId.IsValid() && InstanceAPI != null)
 				instance = await InstanceAPI.Fetch(instanceId);
-
-			// _coreAPI.LoggerAPI.LogDebug($"Updating Discord presence for user '{user?.GetDisplay() ?? "Not logged"}' in session '{session?.GetTitle() ?? "No session"}'");
 
 			var thumbnail = user?.Thumbnail ?? "";
 			var display   = user?.Display ?? "";
@@ -126,8 +125,19 @@ namespace Nox.Discord {
 				details = "Playing Nox",
 				state = State(session),
 				#endif
-				largeImageKey = string.IsNullOrEmpty(thumbnail) ? "default" : thumbnail, largeImageText = string.IsNullOrEmpty(display) ? "Not logged" : display, smallImageKey = string.IsNullOrEmpty(thumbnail) ? "" : "default", startTimestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds(),
-				partyMax      = instance?.GetCapacity() ?? 0, partySize                                 = instance?.GetPlayerCount() ?? 0, partyId                              = instance?.ToIdentifier()?.ToString()
+				largeImageKey = string.IsNullOrEmpty(thumbnail) 
+					? "default" 
+					: thumbnail, 
+				largeImageText = string.IsNullOrEmpty(display) 
+					? "Not logged" 
+					: display,
+				smallImageKey = string.IsNullOrEmpty(thumbnail) 
+					? "" 
+					: "default", 
+				startTimestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds(),
+				partyMax      = instance?.Capacity ?? 0,
+				partySize     = instance?.ClientCount ?? 0,
+				partyId       = instance?.Identifier.ToString()
 			};
 
 			DiscordRpc.UpdatePresence(presence);
