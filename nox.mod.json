@@ -19,7 +19,6 @@
       "website": "https://hactazia.fr/"
     }
   ],
-  "contributors": [],
   "relations": [
     {
       "id": "users",
@@ -41,9 +40,5 @@
     "main": [
       "Nox.Discord.Main"
     ]
-  },
-  "references": [],
-  "sides": [],
-  "permissions": [],
-  "kernel": true
+  }
 }
