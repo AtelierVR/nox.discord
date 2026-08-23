@@ -38,6 +38,11 @@ namespace Nox.Discord {
 
 		public void OnInitializeMain(IMainModCoreAPI api) {
 			_coreAPI = api;
+			// Load the native discord-rpc library through LibAPI (mod-aware plugin folders,
+			// platform detection, ref-counted loading) and resolve all native entry points
+			// as delegates — no DllImport needed.
+			DiscordRpc.InitializeLib(api.LibAPI);
+
 			var handlers = new DiscordRpc.EventHandlers {
 				disconnectedCallback = OnDisconnected,
 				errorCallback        = OnError,
@@ -60,38 +65,29 @@ namespace Nox.Discord {
 			};
 		}
 
-		private void OnUserUpdateEvent(EventData context)
-			=> OnUserUpdateEventAsync(context).Forget();
-
-		private void OnInstanceUpdateEvent(EventData context)
-			=> OnInstanceUpdateEventAsync(context).Forget();
-
-		private void OnChangeUpdateEvent(EventData context)
-			=> OnChangeUpdateEventAsync(context).Forget();
-
 		private IUser _lastUser;
 		private IInstance _lastInstance;
 
-		private async UniTask OnUserUpdateEventAsync(EventData context) {
+		private void OnUserUpdateEvent(EventData context) {
 			if (!context.TryGet<IUser>(0, out var user))
 				return;
 			if (UserAPI?.Current?.Id != user.Id)
 				return;
 			var session = (SessionAPI != null && SessionAPI.TryGet(SessionAPI.Current, out var s)) ? s : null;
 			_lastUser = user;
-			await UpdateDetails(_lastUser, _lastInstance, session);
+			UpdateDetails(_lastUser, _lastInstance, session);
 		}
 
-		private async UniTask OnInstanceUpdateEventAsync(EventData context) {
+		private void OnInstanceUpdateEvent(EventData context) {
 			if (!context.TryGet<IInstance>(0, out var instance))
 				return;
 			if (SessionAPI == null || !SessionAPI.TryGet(SessionAPI.Current, out var session) || !session.GetInstance().Equals(instance.Identifier))
 				return;
 			_lastInstance = instance;
-			await UpdateDetails(_lastUser, _lastInstance, session);
+			UpdateDetails(_lastUser, _lastInstance, session);
 		}
 
-		private async UniTask OnChangeUpdateEventAsync(EventData context) {
+		private void OnChangeUpdateEvent(EventData context) {
 			if (!context.TryGet<ISession>(0, out var session))
 				return;
 			if (session == null)
@@ -99,7 +95,7 @@ namespace Nox.Discord {
 			if (SessionAPI == null || !SessionAPI.TryGet(SessionAPI.Current, out var current) || !current.GetInstance().Equals(session.GetInstance()))
 				return;
 			_lastInstance = null; // instance will be updated separately if needed
-			await UpdateDetails(_lastUser, _lastInstance, current);
+			UpdateDetails(_lastUser, _lastInstance, current);
 		}
 
 
@@ -127,7 +123,7 @@ namespace Nox.Discord {
 			_coreAPI.LoggerAPI.LogDebug($"Connected to Discord as {ToDisplay(ref user)} ({user.userId})");
 			_isReady = true;
 			var session = (SessionAPI != null && SessionAPI.TryGet(SessionAPI.Current, out var s)) ? s : null;
-			UpdateDetails(_lastUser, _lastInstance, session).Forget();
+			UpdateDetails(_lastUser, _lastInstance, session);
 		}
 
 		private void OnJoin(string secret) {
@@ -151,7 +147,7 @@ namespace Nox.Discord {
 				?? "In Session";
 		}
 
-		private async UniTask UpdateDetails(IUser user, IInstance instance, ISession session) {
+		private void UpdateDetails(IUser user, IInstance instance, ISession session) {
 			if (!_isReady || !_isInitialized)
 				return;
 
@@ -186,7 +182,7 @@ namespace Nox.Discord {
 		}
 
 		public void OnDisposeMain() {
-			DiscordRpc.Shutdown();
+			DiscordRpc.Dispose();
 			_isReady       = false;
 			_isInitialized = false;
 			_lastInstance  = null;

@@ -3,8 +3,30 @@ using System.Collections.Generic;
 using System.Runtime.InteropServices;
 using System.Text;
 using AOT;
+using Nox.CCK.Mods.Libs;
 
 public class DiscordRpc {
+	// Delegate types matching the Discord RPC API signatures
+	public delegate void InitializeDelegate(string applicationId, ref EventHandlers handlers, bool autoRegister, string optionalSteamId);
+	public delegate void ShutdownDelegate();
+	public delegate void RunCallbacksDelegate();
+	public delegate void UpdatePresenceDelegate(ref RichPresenceStruct presence);
+	public delegate void ClearPresenceDelegate();
+	public delegate void RespondDelegate(string userId, Reply reply);
+	public delegate void UpdateHandlersDelegate(ref EventHandlers handlers);
+
+	// Loaded delegates from the native library
+	private static InitializeDelegate _initialize;
+	private static ShutdownDelegate _shutdown;
+	private static RunCallbacksDelegate _runCallbacks;
+	private static UpdatePresenceDelegate _updatePresence;
+	private static ClearPresenceDelegate _clearPresence;
+	private static RespondDelegate _respond;
+	private static UpdateHandlersDelegate _updateHandlers;
+
+	// Store ILibAPI reference for unloading
+	private static ILibAPI _libApi;
+
 	[MonoPInvokeCallback(typeof(OnReadyInfo))]
 	public static void ReadyCallback(ref DiscordUser connectedUser) {
 		Callbacks.readyCallback(ref connectedUser);
@@ -97,6 +119,42 @@ public class DiscordRpc {
 		Public  = 1
 	}
 
+	/// <summary>
+	/// Initializes the Discord RPC library using the provided ILibAPI.
+	/// Must be called before any other DiscordRpc methods.
+	/// </summary>
+	public static void InitializeLib(ILibAPI libApi) {
+		_libApi = libApi;
+		_libApi.Load("discord-rpc");
+		_initialize      = _libApi.GetDelegate<InitializeDelegate>("discord-rpc", "Discord_Initialize");
+		_shutdown        = _libApi.GetDelegate<ShutdownDelegate>("discord-rpc", "Discord_Shutdown");
+		_runCallbacks    = _libApi.GetDelegate<RunCallbacksDelegate>("discord-rpc", "Discord_RunCallbacks");
+		_updatePresence  = _libApi.GetDelegate<UpdatePresenceDelegate>("discord-rpc", "Discord_UpdatePresence");
+		_clearPresence   = _libApi.GetDelegate<ClearPresenceDelegate>("discord-rpc", "Discord_ClearPresence");
+		_respond         = _libApi.GetDelegate<RespondDelegate>("discord-rpc", "Discord_Respond");
+		_updateHandlers  = _libApi.GetDelegate<UpdateHandlersDelegate>("discord-rpc", "Discord_UpdateHandlers");
+	}
+
+	/// <summary>
+	/// Disposes the Discord RPC library, shutting down the connection and unloading the native library.
+	/// </summary>
+	public static void Dispose() {
+		try {
+			_shutdown?.Invoke();
+		} catch {
+			// Ignore errors during shutdown
+		}
+		_libApi?.Unload("discord-rpc");
+		_libApi = null;
+		_initialize = null;
+		_shutdown = null;
+		_runCallbacks = null;
+		_updatePresence = null;
+		_clearPresence = null;
+		_respond = null;
+		_updateHandlers = null;
+	}
+
 	public static void Initialize(string applicationId, ref EventHandlers handlers, bool autoRegister, string optionalSteamId) {
 		Callbacks = handlers;
 
@@ -108,33 +166,27 @@ public class DiscordRpc {
 		staticEventHandlers.spectateCallback     += DiscordRpc.SpectateCallback;
 		staticEventHandlers.requestCallback      += DiscordRpc.RequestCallback;
 
-		InitializeInternal(applicationId, ref staticEventHandlers, autoRegister, optionalSteamId);
+		_initialize(applicationId, ref staticEventHandlers, autoRegister, optionalSteamId);
 	}
 
-	[DllImport("discord-rpc", EntryPoint = "Discord_Initialize", CallingConvention = CallingConvention.Cdecl)]
-	static extern void InitializeInternal(string applicationId, ref EventHandlers handlers, bool autoRegister, string optionalSteamId);
+	public static void Shutdown() 
+		=> _shutdown();
 
-	[DllImport("discord-rpc", EntryPoint = "Discord_Shutdown", CallingConvention = CallingConvention.Cdecl)]
-	public static extern void Shutdown();
+	public static void RunCallbacks() 
+		=> _runCallbacks();
 
-	[DllImport("discord-rpc", EntryPoint = "Discord_RunCallbacks", CallingConvention = CallingConvention.Cdecl)]
-	public static extern void RunCallbacks();
+	public static void ClearPresence() 
+		=> _clearPresence();
 
-	[DllImport("discord-rpc", EntryPoint = "Discord_UpdatePresence", CallingConvention = CallingConvention.Cdecl)]
-	private static extern void UpdatePresenceNative(ref RichPresenceStruct presence);
+	public static void Respond(string userId, Reply reply) 
+		=> _respond(userId, reply);
 
-	[DllImport("discord-rpc", EntryPoint = "Discord_ClearPresence", CallingConvention = CallingConvention.Cdecl)]
-	public static extern void ClearPresence();
-
-	[DllImport("discord-rpc", EntryPoint = "Discord_Respond", CallingConvention = CallingConvention.Cdecl)]
-	public static extern void Respond(string userId, Reply reply);
-
-	[DllImport("discord-rpc", EntryPoint = "Discord_UpdateHandlers", CallingConvention = CallingConvention.Cdecl)]
-	public static extern void UpdateHandlers(ref EventHandlers handlers);
+	public static void UpdateHandlers(ref EventHandlers handlers) 
+		=> _updateHandlers(ref handlers);
 
 	public static void UpdatePresence(RichPresence presence) {
 		var presencestruct = presence.GetStruct();
-		UpdatePresenceNative(ref presencestruct);
+		_updatePresence(ref presencestruct);
 		presence.FreeMem();
 	}
 
