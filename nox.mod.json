@@ -23,17 +23,20 @@
     {
       "id": "users",
       "type": "recommends",
-      "version": ">=1.0.0"
+      "version": ">=1.0.0",
+      "register": "git+https://github.com/AtelierVR/nox.users.git"
     },
     {
       "id": "session",
       "type": "recommends",
-      "version": ">=1.0.0"
+      "version": ">=1.0.0",
+      "register": "git+https://github.com/AtelierVR/nox.sessions.git"
     },
     {
       "id": "instances",
       "type": "recommends",
-      "version": ">=1.0.0"
+      "version": ">=1.0.0",
+      "register": "git+https://github.com/AtelierVR/nox.instances.git"
     }
   ],
   "entrypoints": {
