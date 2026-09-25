@@ -38,9 +38,10 @@ namespace Nox.Discord {
 
 		public void OnInitializeMain(IMainModCoreAPI api) {
 			_coreAPI = api;
-			// Load the native discord-rpc library through LibAPI (mod-aware plugin folders,
-			// platform detection, ref-counted loading) and resolve all native entry points
-			// as delegates — no DllImport needed.
+
+			if (DiscordRpc.IsInitialized)
+				DiscordRpc.Dispose();
+
 			DiscordRpc.InitializeLib(api.LibAPI);
 
 			var handlers = new DiscordRpc.EventHandlers {
@@ -103,7 +104,7 @@ namespace Nox.Discord {
 
 
 		public void OnUpdateMain() {
-			if (!_isInitialized)
+			if (!_isInitialized || !DiscordRpc.IsInitialized)
 				return;
 			DiscordRpc.RunCallbacks();
 		}
@@ -120,6 +121,9 @@ namespace Nox.Discord {
 		}
 
 		private void OnReady(ref DiscordRpc.DiscordUser user) {
+			if (!_isInitialized || !DiscordRpc.IsInitialized)
+				return;
+
 			_coreAPI.LoggerAPI.LogDebug($"Connected to Discord as {ToDisplay(ref user)} ({user.userId})");
 			_isReady = true;
 			var session = (SessionAPI != null && SessionAPI.TryGet(SessionAPI.Current, out var s)) ? s : null;
@@ -148,7 +152,7 @@ namespace Nox.Discord {
 		}
 
 		private void UpdateDetails(IUser user, IInstance instance, ISession session) {
-			if (!_isReady || !_isInitialized)
+			if (!_isReady || !_isInitialized || !DiscordRpc.IsInitialized)
 				return;
 
 
@@ -182,15 +186,18 @@ namespace Nox.Discord {
 		}
 
 		public void OnDisposeMain() {
-			DiscordRpc.Dispose();
 			_isReady       = false;
 			_isInitialized = false;
-			_lastInstance  = null;
-			_lastUser      = null;
 
 			foreach (var sub in _events)
 				_coreAPI.EventAPI.Unsubscribe(sub);
-			_coreAPI = null;
+			_events = Array.Empty<EventSubscription>();
+
+			DiscordRpc.Dispose();
+
+			_lastInstance = null;
+			_lastUser     = null;
+			_coreAPI      = null;
 		}
 	}
 

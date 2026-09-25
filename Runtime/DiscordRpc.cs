@@ -27,44 +27,67 @@ public class DiscordRpc {
 	// Store ILibAPI reference for unloading
 	private static ILibAPI _libApi;
 
+	/// <summary>
+	/// <c>true</c> between a successful <see cref="Initialize"/> and <see cref="Dispose"/>.
+	/// <para>Every native entry point is guarded by it. Calling into discord-rpc before the library
+	/// is initialized — or after it has been shut down — dereferences the internal RPC connection,
+	/// which is <c>null</c> at that point, and crashes the process inside <c>Discord_UpdatePresence</c>
+	/// (observed instruction: <c>mov dword ptr [rcx+164h], 1</c> with <c>rcx = 0</c>, i.e. a method
+	/// called on a null object). Since the access violation is fatal it cannot be caught in managed
+	/// code, so the guard has to happen before the call.</para>
+	/// </summary>
+	public static bool IsInitialized { get; private set; }
+
 	[MonoPInvokeCallback(typeof(OnReadyInfo))]
 	public static void ReadyCallback(ref DiscordUser connectedUser) {
-		Callbacks.readyCallback(ref connectedUser);
+		if (!IsInitialized)
+			return;
+		Callbacks.readyCallback?.Invoke(ref connectedUser);
 	}
 
 	public delegate void OnReadyInfo(ref DiscordUser connectedUser);
 
 	[MonoPInvokeCallback(typeof(OnDisconnectedInfo))]
 	public static void DisconnectedCallback(int errorCode, string message) {
-		Callbacks.disconnectedCallback(errorCode, message);
+		if (!IsInitialized)
+			return;
+		Callbacks.disconnectedCallback?.Invoke(errorCode, message);
 	}
 
 	public delegate void OnDisconnectedInfo(int errorCode, string message);
 
 	[MonoPInvokeCallback(typeof(OnErrorInfo))]
 	public static void ErrorCallback(int errorCode, string message) {
-		Callbacks.errorCallback(errorCode, message);
+		if (!IsInitialized)
+			return;
+		Callbacks.errorCallback?.Invoke(errorCode, message);
 	}
 
 	public delegate void OnErrorInfo(int errorCode, string message);
 
 	[MonoPInvokeCallback(typeof(OnJoinInfo))]
 	public static void JoinCallback(string secret) {
-		Callbacks.joinCallback(secret);
+		if (!IsInitialized)
+			return;
+		Callbacks.joinCallback?.Invoke(secret);
 	}
 
 	public delegate void OnJoinInfo(string secret);
 
 	[MonoPInvokeCallback(typeof(OnSpectateInfo))]
 	public static void SpectateCallback(string secret) {
-		Callbacks.spectateCallback(secret);
+		if (!IsInitialized)
+			return;
+		Callbacks.spectateCallback?.Invoke(secret);
 	}
 
 	public delegate void OnSpectateInfo(string secret);
 
 	[MonoPInvokeCallback(typeof(OnRequestInfo))]
 	public static void RequestCallback(ref DiscordUser request) {
-		Callbacks.requestCallback(ref request);
+		if (!IsInitialized)
+			return;
+		Callbacks.requestCallback?.Invoke(ref request);
 	}
 
 	public delegate void OnRequestInfo(ref DiscordUser request);
@@ -136,14 +159,23 @@ public class DiscordRpc {
 	}
 
 	/// <summary>
-	/// Disposes the Discord RPC library, shutting down the connection and unloading the native library.
+	/// Shuts the RPC connection down and unloads the native library.
+	/// <para>The managed entry points are released before the shutdown so that a callback firing
+	/// during the teardown can never re-enter the mod, and the shutdown itself runs before the
+	/// library is released.</para>
 	/// </summary>
 	public static void Dispose() {
-		try {
-			_shutdown?.Invoke();
-		} catch {
-			// Ignore errors during shutdown
+		Callbacks      = default;
+		IsInitialized  = false;
+
+		if (_shutdown != null) {
+			try {
+				_shutdown();
+			} catch {
+				// Ignore errors during shutdown
+			}
 		}
+
 		_libApi?.Unload("discord-rpc");
 		_libApi = null;
 		_initialize = null;
@@ -156,6 +188,9 @@ public class DiscordRpc {
 	}
 
 	public static void Initialize(string applicationId, ref EventHandlers handlers, bool autoRegister, string optionalSteamId) {
+		if (_initialize == null)
+			throw new InvalidOperationException("DiscordRpc.InitializeLib must be called before DiscordRpc.Initialize.");
+
 		Callbacks = handlers;
 
 		EventHandlers staticEventHandlers = new EventHandlers();
@@ -167,27 +202,49 @@ public class DiscordRpc {
 		staticEventHandlers.requestCallback      += DiscordRpc.RequestCallback;
 
 		_initialize(applicationId, ref staticEventHandlers, autoRegister, optionalSteamId);
+		IsInitialized = true;
 	}
 
-	public static void Shutdown() 
-		=> _shutdown();
+	public static void Shutdown() {
+		if (IsInitialized)
+			_shutdown?.Invoke();
+	}
 
-	public static void RunCallbacks() 
-		=> _runCallbacks();
+	public static void RunCallbacks() {
+		if (IsInitialized)
+			_runCallbacks?.Invoke();
+	}
 
-	public static void ClearPresence() 
-		=> _clearPresence();
+	public static void ClearPresence() {
+		if (IsInitialized)
+			_clearPresence?.Invoke();
+	}
 
-	public static void Respond(string userId, Reply reply) 
-		=> _respond(userId, reply);
+	public static void Respond(string userId, Reply reply) {
+		if (IsInitialized)
+			_respond?.Invoke(userId, reply);
+	}
 
-	public static void UpdateHandlers(ref EventHandlers handlers) 
-		=> _updateHandlers(ref handlers);
+	public static void UpdateHandlers(ref EventHandlers handlers) {
+		if (IsInitialized)
+			_updateHandlers?.Invoke(ref handlers);
+	}
 
+	/// <summary>
+	/// Pushes a new rich presence. No-op when the library is not initialized: the native call
+	/// dereferences the RPC connection, which is null before <see cref="Initialize"/> and after
+	/// <see cref="Dispose"/>.
+	/// </summary>
 	public static void UpdatePresence(RichPresence presence) {
+		if (!IsInitialized || _updatePresence == null || presence == null)
+			return;
+
 		var presencestruct = presence.GetStruct();
-		_updatePresence(ref presencestruct);
-		presence.FreeMem();
+		try {
+			_updatePresence(ref presencestruct);
+		} finally {
+			presence.FreeMem();
+		}
 	}
 
 	public class RichPresence {
